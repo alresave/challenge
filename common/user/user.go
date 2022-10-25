@@ -12,3 +12,11 @@ type User struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
+
+func (u *User) ConvertToUserInfo() *Info {
+	return &Info{
+		Id:    u.Id,
+		Name:  u.UserName,
+		Email: u.Email,
+	}
+}

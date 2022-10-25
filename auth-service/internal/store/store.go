@@ -3,7 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
-	"github.com/alresave/jobsity-challenge/auth-service/internal/model"
+	"jobsity-challenge/common/user"
 )
 
 type Store struct {
@@ -23,7 +23,7 @@ func (s *Store) connect() (*sql.DB, error) {
 	return conn, nil
 }
 
-func (s *Store) Authenticate(userName, password string) (*model.User, error) {
+func (s *Store) AuthenticateUser(userName, password string) (*user.Info, error) {
 	conn, err := s.connect()
 	if err != nil {
 		return nil, err
@@ -37,13 +37,17 @@ func (s *Store) Authenticate(userName, password string) (*model.User, error) {
 	}
 
 	if res.Next() {
-		var user model.User
+		var user user.User
 		err := res.Scan(&user.Id, user.UserName, user.Email, user.Password)
 		if err != nil {
 			return nil, err
 		}
-		return &user, nil
+		return user.ConvertToUserInfo(), nil
 	} else {
 		return nil, fmt.Errorf("could not authenticate user: %s", userName)
 	}
+}
+
+func (s *Store) AddUser(input user.User) error {
+	return nil
 }
