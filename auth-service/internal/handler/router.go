@@ -18,7 +18,7 @@ func SetupRouter(service auth.Service, logger *zap.SugaredLogger) *gin.Engine {
 	{
 		v1Group := router.Group("/auth/v1")
 		{
-			v1Group.GET("/user_exists", service.UserExists)
+			v1Group.GET("/exists", service.UserExists)
 			v1Group.PUT("/add_user", service.AddUser)
 			v1Group.POST("/login", service.AuthenticateUser)
 
