@@ -1,15 +1,20 @@
 package user
 
 type Info struct {
-	Id    int    `json:"id"`
+	Id    int64  `json:"id"`
 	Name  string `json:"name"`
 	Email string `json:"email"`
 }
 
 type User struct {
-	Id       int    `json:"id"`
+	Id       int64  `json:"id"`
 	UserName string `json:"userName"`
 	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type Login struct {
+	UserName string `json:"userName"`
 	Password string `json:"password"`
 }
 

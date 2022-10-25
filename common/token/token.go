@@ -2,6 +2,7 @@ package token
 
 import (
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
 	"jobsity-challenge/common/user"
 	"strconv"
@@ -22,7 +23,7 @@ func New(secret string) *Token {
 }
 
 // GenerateToken Generates a _token_ based on the userInfo.
-func (t *Token) GenerateToken(userInfo user.Info) (string, error) {
+func (t *Token) GenerateToken(userInfo *user.Info) (string, error) {
 	var sampleSecretKey = []byte(t.secret)
 
 	claims := chatClaims{
@@ -65,7 +66,7 @@ func (t *Token) ParseToken(tokenStr string) (*user.Info, error) {
 	}
 	fmt.Println(token.Claims)
 	fmt.Println(claims)
-	id, err := strconv.Atoi(claims.Id)
+	id, err := strconv.ParseInt(claims.Id, 10, 64)
 	if err != nil {
 		return nil, err
 	}
@@ -75,4 +76,16 @@ func (t *Token) ParseToken(tokenStr string) (*user.Info, error) {
 		Name:  claims.User,
 		Email: claims.Email,
 	}, nil
+}
+
+func (t *Token) ParseFromContext(ctx *gin.Context) (*user.Info, error) {
+	tokenStr := ctx.GetHeader("Authorization")
+	if tokenStr == "" {
+		return nil, fmt.Errorf("error parsing token: %s", "empty header")
+	}
+	user, err := t.ParseToken(tokenStr)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing token: %s", err.Error())
+	}
+	return user, nil
 }
