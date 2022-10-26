@@ -2,20 +2,17 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"github.com/gin-gonic/gin"
+	"github.com/caarlos0/env/v6"
 	"github.com/joho/godotenv"
-	"github.com/olahol/melody"
 	"go.uber.org/zap"
+	"jobsity-challenge/chat-service/internal/config"
 	"jobsity-challenge/chat-service/internal/consumer"
+	"jobsity-challenge/chat-service/internal/handler"
 	"jobsity-challenge/chat-service/internal/socket"
 	"jobsity-challenge/chat-service/internal/store"
-	"jobsity-challenge/common/service"
 	"jobsity-challenge/common/token"
 	"net/http"
-	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 )
@@ -31,35 +28,35 @@ func main() {
 		}
 	}(logger)
 
+	listenAndServe(logger)
+}
+
+func listenAndServe(logger *zap.SugaredLogger) {
 	if err := godotenv.Load("../.env"); err != nil {
 		panic("Failed to load environment variables:" + err.Error())
 	}
-	url := os.Getenv("CHAT_PORT")
-	listenAndServe(url, logger)
-}
 
-func listenAndServe(serverPort string, logger *zap.SugaredLogger) {
-	rabbitUrl := os.Getenv("RABBIT_URL")
-	q := os.Getenv("RABBIT_QUEUE")
-	redisUrl := os.Getenv("REDIS_URL")
-	redisPass := os.Getenv("REDIS_PASSWORD")
-	redisDb, _ := strconv.Atoi(os.Getenv("REDIS_DB"))
-	secret := os.Getenv("SECRET")
-	ss := store.NewConnection(redisUrl, redisPass, redisDb, logger)
+	cfg := config.Config{}
+	if err := env.Parse(&cfg); err != nil {
+		panic("could not load environment variables")
+	}
+
+	ss := store.NewConnection(cfg, logger)
 	m := socket.New(ss, logger)
-	tkn := token.New(secret)
-	router := configRouter(m, tkn, ss, logger)
-	cons := consumer.New(rabbitUrl, q, m, logger)
+	tkn := token.New(cfg.JWTSecret)
+	svr := handler.New(m, ss, tkn, logger)
+	router := handler.SetupRouter(svr)
+	cons := consumer.New(cfg.RabbitUrl, cfg.RabbitQueue, m, logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	srv := &http.Server{
-		Addr:    serverPort,
+		Addr:    cfg.ServiceUrl,
 		Handler: router,
 	}
 
 	go func() {
-		logger.Infof("Listening on address: %s", serverPort)
+		logger.Infof("Listening on address: %s", cfg.ServiceUrl)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatalf("listen: %s\n", err)
 		}
@@ -87,46 +84,4 @@ func listenAndServe(serverPort string, logger *zap.SugaredLogger) {
 	}
 
 	logger.Info("Server exiting")
-}
-
-func configRouter(mel *melody.Melody, tkn *token.Token, ss *store.Conn, logger *zap.SugaredLogger) *gin.Engine {
-	router := gin.New()
-	router.Use(gin.Logger())
-	router.Use(gin.Recovery())
-
-	router.Group("/chat")
-	{
-		v1Group := router.Group("/chat/v1")
-		{
-			v1Group.GET("/messages", func(c *gin.Context) {
-				_, err := tkn.ParseFromContext(c)
-				if err != nil {
-					service.HandleError(c, err)
-					return
-				}
-				logger.Info("Authorized")
-				messages, err := ss.GetMessages()
-				if err != nil {
-					service.HandleError(c, err)
-					return
-				}
-				service.SuccessResponse(c, gin.H{
-					"status":  http.StatusOK,
-					"message": "OK",
-					"error":   false,
-					"data":    messages,
-				})
-			})
-			v1Group.GET("/ws", func(c *gin.Context) {
-				fmt.Println("here")
-				_, err := tkn.ParseFromContext(c)
-				if err != nil {
-					service.HandleError(c, err)
-					return
-				}
-				mel.HandleRequest(c.Writer, c.Request)
-			})
-		}
-	}
-	return router
 }
