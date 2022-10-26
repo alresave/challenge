@@ -4,9 +4,10 @@ import (
 	"context"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/olahol/melody"
 	"go.uber.org/zap"
-	"jobsity-challenge/bot-service/internal/handler"
-	"jobsity-challenge/bot-service/internal/queue"
+	"jobsity-challenge/chat-service/internal/consumer"
+	"jobsity-challenge/chat-service/internal/socket"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,7 +15,7 @@ import (
 	"time"
 )
 
-const ServiceName = "stock-service"
+const ServiceName = "chat-service"
 
 func main() {
 	logger := zap.NewExample().Sugar()
@@ -28,21 +29,18 @@ func main() {
 	if err := godotenv.Load("../.env"); err != nil {
 		panic("Failed to load environment variables:" + err.Error())
 	}
-	rabbitUrl := os.Getenv("RABBIT_URL")
-	port := os.Getenv("STOCK_PORT")
-	e := os.Getenv("RABBIT_EXCHANGE")
-	q := os.Getenv("RABBIT_QUEUE")
-
-	theQueue := queue.New(rabbitUrl, e, q, logger)
-
-	stockHandler := handler.New(theQueue)
-
-	router := handler.SetupRouter(stockHandler)
-
-	listenAndServe(router, port, logger)
+	url := os.Getenv("CHAT_PORT")
+	listenAndServe(url, logger)
 }
 
-func listenAndServe(router *gin.Engine, serverPort string, logger *zap.SugaredLogger) {
+func listenAndServe(serverPort string, logger *zap.SugaredLogger) {
+	rabbitUrl := os.Getenv("RABBIT_URL")
+	q := os.Getenv("RABBIT_QUEUE")
+	m := socket.New()
+
+	router := configRouter(m)
+	cons := consumer.New(rabbitUrl, q, m, logger)
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	srv := &http.Server{
@@ -54,6 +52,13 @@ func listenAndServe(router *gin.Engine, serverPort string, logger *zap.SugaredLo
 		logger.Infof("Listening on address: %s", serverPort)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatalf("listen: %s\n", err)
+		}
+	}()
+
+	go func() {
+		logger.Info("Listening queue")
+		if err := cons.Consume(); err != nil {
+			logger.Fatalf("listen queue: %s\n", err)
 		}
 	}()
 
@@ -72,4 +77,21 @@ func listenAndServe(router *gin.Engine, serverPort string, logger *zap.SugaredLo
 	}
 
 	logger.Info("Server exiting")
+}
+
+func configRouter(mel *melody.Melody) *gin.Engine {
+	router := gin.New()
+	router.Use(gin.Logger())
+	router.Use(gin.Recovery())
+
+	router.Group("/chat")
+	{
+		v1Group := router.Group("/chat/v1")
+		{
+			v1Group.GET("/ws", func(c *gin.Context) {
+				mel.HandleRequest(c.Writer, c.Request)
+			})
+		}
+	}
+	return router
 }

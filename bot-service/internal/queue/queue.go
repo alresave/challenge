@@ -5,22 +5,26 @@ import (
 	"encoding/json"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.uber.org/zap"
-	"jobsity-challenge/bot-service/internal/stock"
+	"jobsity-challenge/common/service"
 )
 
 type Queue struct {
-	url    string
-	logger *zap.SugaredLogger
+	url      string
+	exchange string
+	queue    string
+	logger   *zap.SugaredLogger
 }
 
-func New(url string, logger *zap.SugaredLogger) *Queue {
+func New(url, exchange, queue string, logger *zap.SugaredLogger) *Queue {
 	return &Queue{
-		url:    url,
-		logger: logger,
+		url:      url,
+		logger:   logger,
+		exchange: exchange,
+		queue:    queue,
 	}
 }
 
-func (q *Queue) SendToQueue(ctx context.Context, msg stock.Response) error {
+func (q *Queue) SendToQueue(ctx context.Context, msg service.StockResponse) error {
 	conn, err := amqp.Dial(q.url)
 	if err != nil {
 		return err
@@ -39,20 +43,20 @@ func (q *Queue) SendToQueue(ctx context.Context, msg stock.Response) error {
 	}
 
 	err = ch.ExchangeDeclare(
-		"stock", // name
-		"topic", // type
-		true,    // durable
-		false,   // auto-deleted
-		false,   // internal
-		false,   // no-wait
-		nil,     // arguments
+		q.exchange, // name
+		"fanout",   // type
+		true,       // durable
+		false,      // auto-deleted
+		false,      // internal
+		false,      // no-wait
+		nil,        // arguments
 	)
 	if err != nil {
 		return err
 	}
 
-	chatQueue, err := ch.QueueDeclare(
-		"stock", // name
+	_, err = ch.QueueDeclare(
+		q.queue, // name
 		false,   // durable
 		false,   // delete when unused
 		false,   // exclusive
@@ -64,9 +68,9 @@ func (q *Queue) SendToQueue(ctx context.Context, msg stock.Response) error {
 	}
 
 	err = ch.QueueBind(
-		chatQueue.Name, // queue name
-		"",             // routing key
-		"stock",        // exchange
+		q.queue,    // queue name
+		"",         // routing key
+		q.exchange, // exchange
 		false,
 		nil,
 	)
@@ -84,5 +88,5 @@ func (q *Queue) SendToQueue(ctx context.Context, msg stock.Response) error {
 		Body:        m,
 	}
 	q.logger.Info("Sending message to queue")
-	return ch.PublishWithContext(ctx, "stock", "", false, false, message)
+	return ch.PublishWithContext(ctx, q.exchange, "", false, false, message)
 }

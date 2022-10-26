@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"jobsity-challenge/bot-service/internal/queue"
 	"jobsity-challenge/bot-service/internal/stock"
@@ -22,22 +21,22 @@ func New(queue *queue.Queue) *Stock {
 }
 
 func (s *Stock) GetStockValue(ctx *gin.Context) {
-	stockCode, ok := ctx.GetQuery("stockCode")
-	fmt.Println(stockCode)
-	if !ok {
-		service.HandleError(ctx, &service.BadRequest{ErrMessage: "parameter not found"})
+	var req service.StockRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		service.HandleError(ctx, err)
 		return
 	}
 
-	val, err := stock.CallService(stockCode)
+	val, err := stock.CallService(req.StockCode)
 	if err != nil {
 		service.HandleError(ctx, err)
 		return
 	}
 
-	resp := stock.Response{
-		StockCode: stockCode,
+	resp := service.StockResponse{
+		StockCode: req.StockCode,
 		Value:     val,
+		Room:      req.Room,
 	}
 
 	c, cancel := context.WithTimeout(context.Background(), 5*time.Second)

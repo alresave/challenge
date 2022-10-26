@@ -5,6 +5,12 @@ import (
 	"net/http"
 )
 
+type StockResponse struct {
+	StockCode string  `json:"stockCode"`
+	Value     float64 `json:"value"`
+	Room      string  `json:"room"`
+}
+
 func SuccessResponse(c *gin.Context, data interface{}) {
 	c.JSON(200, data)
 }
