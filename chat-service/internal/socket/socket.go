@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/olahol/melody"
+	"go.uber.org/zap"
+	"jobsity-challenge/chat-service/internal/store"
 	"jobsity-challenge/common/service"
 )
 
-func New() *melody.Melody {
+func New(conn *store.Conn, logger *zap.SugaredLogger) *melody.Melody {
 	m := melody.New()
 	m.HandleConnect(func(s *melody.Session) {
 		params := s.Request.URL.Query()
@@ -45,6 +47,12 @@ func New() *melody.Melody {
 		m.BroadcastFilter(msg, func(q *melody.Session) bool {
 			req := service.ChatRequest{}
 			json.Unmarshal(msg, &req)
+			logger.Info(req)
+			if req.UserName != "/stock" {
+				go func() {
+					conn.AddMessage(&req)
+				}()
+			}
 			value, _ := s.Get("info")
 
 			cReq := value.(*service.ConnectRequest)
