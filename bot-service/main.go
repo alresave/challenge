@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"github.com/gin-gonic/gin"
+	"github.com/caarlos0/env/v6"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
+	"jobsity-challenge/bot-service/internal/config"
 	"jobsity-challenge/bot-service/internal/handler"
 	"jobsity-challenge/bot-service/internal/queue"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -25,33 +25,34 @@ func main() {
 		}
 	}(logger)
 
+	listenAndServe(logger)
+}
+
+func listenAndServe(logger *zap.SugaredLogger) {
 	if err := godotenv.Load("../.env"); err != nil {
 		panic("Failed to load environment variables:" + err.Error())
 	}
-	rabbitUrl := os.Getenv("RABBIT_URL")
-	port := os.Getenv("STOCK_PORT")
-	e := os.Getenv("RABBIT_EXCHANGE")
-	q := os.Getenv("RABBIT_QUEUE")
 
-	theQueue := queue.New(rabbitUrl, e, q, logger)
+	cfg := config.Config{}
+	if err := env.Parse(&cfg); err != nil {
+		panic("could not load environment variables")
+	}
+
+	theQueue := queue.New(cfg.RabbitUrl, cfg.RabbitExchange, cfg.RabbitQueue, logger)
 
 	stockHandler := handler.New(theQueue)
 
 	router := handler.SetupRouter(stockHandler)
 
-	listenAndServe(router, port, logger)
-}
-
-func listenAndServe(router *gin.Engine, serverPort string, logger *zap.SugaredLogger) {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	srv := &http.Server{
-		Addr:    serverPort,
+		Addr:    cfg.ServiceUrl,
 		Handler: router,
 	}
 
 	go func() {
-		logger.Infof("Listening on address: %s", serverPort)
+		logger.Infof("Listening on address: %s", cfg.ServiceUrl)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatalf("listen: %s\n", err)
 		}

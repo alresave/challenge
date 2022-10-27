@@ -3,12 +3,14 @@ package service
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"time"
 )
 
 type StockResponse struct {
-	StockCode string  `json:"stockCode"`
-	Value     float64 `json:"value"`
-	Room      string  `json:"room"`
+	StockCode string    `json:"stockCode"`
+	Value     float64   `json:"value"`
+	Room      string    `json:"room"`
+	DateTime  time.Time `json:"dateTime"`
 }
 
 func SuccessResponse(c *gin.Context, data interface{}) {

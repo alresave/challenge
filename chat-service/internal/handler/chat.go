@@ -94,12 +94,7 @@ func (ch *Chat) GetRoomUsers(ctx *gin.Context) {
 }
 
 func (ch *Chat) HandleChat(ctx *gin.Context) {
-	_, err := ch.tkn.ParseFromContext(ctx)
-	if err != nil {
-		service.HandleError(ctx, err)
-		return
-	}
-	err = ch.mel.HandleRequest(ctx.Writer, ctx.Request)
+	err := ch.mel.HandleRequest(ctx.Writer, ctx.Request)
 	if err != nil {
 		service.HandleError(ctx, err)
 		return

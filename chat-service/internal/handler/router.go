@@ -3,12 +3,14 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 	"jobsity-challenge/chat-service/internal/chat"
+	"jobsity-challenge/common/middleware"
 )
 
 func SetupRouter(svr chat.Service) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
+	router.Use(middleware.CORSMiddleware())
 
 	router.Group("/chat")
 	{

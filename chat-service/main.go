@@ -42,6 +42,10 @@ func listenAndServe(logger *zap.SugaredLogger) {
 	}
 
 	ss := store.NewConnection(cfg, logger)
+	err := ss.AddDefaultRooms()
+	if err != nil {
+		logger.Errorf("error adding default rooms: %s", err.Error())
+	}
 	m := socket.New(ss, logger)
 	tkn := token.New(cfg.JWTSecret)
 	svr := handler.New(m, ss, tkn, logger)

@@ -37,6 +37,7 @@ func (s *Stock) GetStockValue(ctx *gin.Context) {
 		StockCode: req.StockCode,
 		Value:     val,
 		Room:      req.Room,
+		DateTime:  time.Now(),
 	}
 
 	c, cancel := context.WithTimeout(context.Background(), 5*time.Second)

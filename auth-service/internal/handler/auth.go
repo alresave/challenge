@@ -35,7 +35,7 @@ func (a *Auth) AuthenticateUser(ctx *gin.Context) {
 		service.HandleError(ctx, err)
 		return
 	}
-
+	fmt.Println(u)
 	info, err := a.str.AuthenticateUser(u.UserName, u.Password)
 	if err != nil {
 		service.HandleError(ctx, err)

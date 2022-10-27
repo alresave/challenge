@@ -78,7 +78,7 @@ func (c *Conn) GetMessages(room string) ([]service.ChatRequest, error) {
 func (c *Conn) AddRoom(room string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	cmd := c.Db.LPush(ctx, "rooms", room)
+	cmd := c.Db.SAdd(ctx, "rooms", room)
 	_, err := cmd.Result()
 	return err
 }
@@ -86,7 +86,7 @@ func (c *Conn) AddRoom(room string) error {
 func (c *Conn) GetRooms() ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	cmd := c.Db.LRange(ctx, "rooms", 0, 50)
+	cmd := c.Db.SMembers(ctx, "rooms")
 	rooms, err := cmd.Result()
 	if err != nil {
 		return nil, err
@@ -119,6 +119,15 @@ func (c *Conn) RemoveUserFromRoom(user, room string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	cmd := c.Db.SRem(ctx, room, user)
+	_, err := cmd.Result()
+	return err
+}
+
+func (c *Conn) AddDefaultRooms() error {
+	c.Logger.Info("adding default rooms")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := c.Db.SAdd(ctx, "rooms", "General", "Flirt")
 	_, err := cmd.Result()
 	return err
 }
