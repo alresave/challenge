@@ -2,9 +2,11 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-redis/redis/v9"
 	"github.com/goccy/go-json"
 	"go.uber.org/zap"
+	"jobsity-challenge/chat-service/internal/config"
 	"jobsity-challenge/common/service"
 	"time"
 )
@@ -14,11 +16,11 @@ type Conn struct {
 	Db     *redis.Client
 }
 
-func NewConnection(url string, password string, db int, logger *zap.SugaredLogger) *Conn {
+func NewConnection(cfg config.Config, logger *zap.SugaredLogger) *Conn {
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     url,
-		Password: password,
-		DB:       db,
+		Addr:     cfg.RedisUrl,
+		Password: cfg.RedisPassword,
+		DB:       cfg.RedisDb,
 	})
 	return &Conn{
 		Logger: logger,
@@ -26,27 +28,37 @@ func NewConnection(url string, password string, db int, logger *zap.SugaredLogge
 	}
 }
 
-func (c Conn) AddMessage(message *service.ChatRequest) {
+func (c *Conn) AddMessage(message *service.ChatRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	msg, _ := json.Marshal(message)
-	cmd := c.Db.LPush(ctx, "messages", string(msg))
-	res, err := cmd.Result()
-	c.Logger.Info(err)
-	c.Logger.Info(res)
-	cmdl := c.Db.LLen(ctx, "messages")
-	res, err = cmdl.Result()
-	if res > 50 {
-		c.Db.LTrim(ctx, "messages", 1, 50)
+	cmd := c.Db.LPush(ctx, fmt.Sprintf("%s.messages", message.Room), string(msg))
+	_, err := cmd.Result()
+	if err != nil {
+		return err
 	}
-	c.Logger.Infof("added message %v", message)
+	cmdl := c.Db.LLen(ctx, fmt.Sprintf("%s.messages", message.Room))
+	length, err := cmdl.Result()
+	if err != nil {
+		c.Logger.Error(fmt.Errorf("error getting list length: %s", err.Error()))
+	}
+	if length > 50 {
+		cmdt := c.Db.LTrim(ctx, fmt.Sprintf("%s.messages", message.Room), 1, 50)
+		rs, err := cmdt.Result()
+		if err != nil {
+			c.Logger.Error(fmt.Errorf("error getting list length: %s", err.Error()))
+		} else {
+			c.Logger.Info(rs)
+		}
+	}
+	return nil
 }
 
-func (c Conn) GetMessages() ([]service.ChatRequest, error) {
+func (c *Conn) GetMessages(room string) ([]service.ChatRequest, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	c.Logger.Info("Getting messages")
-	cmd := c.Db.LRange(ctx, "messages", 0, 50)
+	c.Logger.Infof("Getting messages from room %s", room)
+	cmd := c.Db.LRange(ctx, fmt.Sprintf("%s.messages", room), 0, 50)
 	msgs, err := cmd.Result()
 	if err != nil {
 		return nil, err
@@ -63,23 +75,68 @@ func (c Conn) GetMessages() ([]service.ChatRequest, error) {
 	return res, nil
 }
 
-func (c Conn) AddRoom(room string) {
+func (c *Conn) AddRoom(room string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	cmd := c.Db.LPush(ctx, "rooms", room)
-	res, err := cmd.Result()
-	c.Logger.Info(err)
-	c.Logger.Info(res)
+	return c.Db.SAdd(ctx, "rooms", room).Err()
 }
 
-func (c Conn) GetRooms() ([]string, error) {
+func (c *Conn) GetRooms() ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	cmd := c.Db.LRange(ctx, "messages", 0, 50)
+	cmd := c.Db.SMembers(ctx, "rooms")
 	rooms, err := cmd.Result()
 	if err != nil {
 		return nil, err
 	}
 
 	return rooms, nil
+}
+
+func (c *Conn) GetRoomUsers(room string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := c.Db.SMembers(ctx, fmt.Sprintf("%s.users", room))
+	users, err := cmd.Result()
+	if err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
+func (c *Conn) AddUserToRoom(user, room string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return c.Db.SAdd(ctx, fmt.Sprintf("%s.users", room), user).Err()
+}
+
+func (c *Conn) RemoveUserFromRoom(user, room string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return c.Db.SRem(ctx, room, user).Err()
+}
+
+func (c *Conn) AddDefaultRooms() error {
+	c.Logger.Info("adding default rooms")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return c.Db.SAdd(ctx, "rooms", "General", "Flirt").Err()
+}
+
+func (c *Conn) AddUserTicket(user, ticket string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return c.Db.Set(ctx, fmt.Sprintf("ticket.%s", user), ticket, 30*time.Second).Err()
+}
+
+func (c *Conn) ValidateUserTicket(user, ticket string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := c.Db.Get(ctx, fmt.Sprintf("ticket.%s", user))
+	t, err := cmd.Result()
+	if err != nil {
+		return false
+	}
+	return t == ticket
 }

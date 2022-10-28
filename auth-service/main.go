@@ -2,14 +2,14 @@ package main
 
 import (
 	"context"
+	"github.com/alresave/jobsity-challenge/auth-service/internal/config"
 	"github.com/alresave/jobsity-challenge/auth-service/internal/handler"
 	"github.com/alresave/jobsity-challenge/auth-service/internal/store"
-	"github.com/gin-gonic/gin"
+	"github.com/caarlos0/env/v6"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 	"jobsity-challenge/common/token"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -26,33 +26,38 @@ func main() {
 		}
 	}(logger)
 
+	listenAndServe(logger)
+}
+
+func listenAndServe(logger *zap.SugaredLogger) {
+
 	if err := godotenv.Load("../.env"); err != nil {
-		panic("Failed to load environment variables:" + err.Error())
+		if err := godotenv.Load("./.env"); err != nil {
+			panic("Failed to load environment variables:" + err.Error())
+		}
 	}
-	mysqlUrl := os.Getenv("MYSQL_URL")
-	secret := os.Getenv("SECRET")
-	port := os.Getenv("AUTH_PORT")
-	err := store.CreateSchema(mysqlUrl, logger)
+	cfg := config.Config{}
+	if err := env.Parse(&cfg); err != nil {
+		panic("could not load environment variables")
+	}
+	err := store.CreateSchema(cfg.MySqlUrl, logger)
 	if err != nil {
 		panic(err)
 	}
-	s := store.New(mysqlUrl, logger)
-	t := token.New(secret)
+	s := store.New(cfg.MySqlUrl, logger)
+	t := token.New(cfg.Secret)
 	hnd := handler.New(s, t)
 	router := handler.SetupRouter(hnd, logger)
-	listenAndServe(router, port, logger)
-}
 
-func listenAndServe(router *gin.Engine, serverPort string, logger *zap.SugaredLogger) {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	srv := &http.Server{
-		Addr:    serverPort,
+		Addr:    cfg.ServiceUrl,
 		Handler: router,
 	}
 
 	go func() {
-		logger.Infof("Listening on address: %s", serverPort)
+		logger.Infof("Listening on address: %s", cfg.ServiceUrl)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatalf("listen: %s\n", err)
 		}

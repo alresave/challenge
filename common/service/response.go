@@ -9,6 +9,7 @@ type StockResponse struct {
 	StockCode string  `json:"stockCode"`
 	Value     float64 `json:"value"`
 	Room      string  `json:"room"`
+	DateTime  int64   `json:"dateTime"`
 }
 
 func SuccessResponse(c *gin.Context, data interface{}) {

@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 	"jobsity-challenge/chat-service/internal/store"
 	"jobsity-challenge/common/service"
+	"time"
 )
 
 func New(conn *store.Conn, logger *zap.SugaredLogger) *melody.Melody {
@@ -17,15 +18,35 @@ func New(conn *store.Conn, logger *zap.SugaredLogger) *melody.Melody {
 			UserName: params.Get("userName"),
 			Room:     params.Get("room"),
 		}
+		fmt.Println(req)
+		ticket := params.Get("ticket")
+		valid := conn.ValidateUserTicket(req.UserName, ticket)
+		if !valid {
+			err := s.CloseWithMsg([]byte("User not authenticated"))
+			if err != nil {
+				logger.Error(fmt.Errorf("error disconnecting: %s", err.Error()))
+			}
+			return
+		}
 		s.Set("info", &req)
+		go func() {
+			err := conn.AddUserToRoom(req.UserName, req.Room)
+			if err != nil {
+				logger.Error(fmt.Errorf("error adding user to room: %s", err.Error()))
+			}
+		}()
 		msg := fmt.Sprintf("%s has joined the room", req.UserName)
 		cReq := service.ChatRequest{
 			UserName: req.Room,
 			Room:     req.Room,
 			Message:  msg,
+			DateTime: time.Now().Unix(),
 		}
 		cMsg, _ := json.Marshal(cReq)
-		m.Broadcast(cMsg)
+		err := m.Broadcast(cMsg)
+		if err != nil {
+			logger.Error(fmt.Errorf("error broadcasting message: %s", err.Error()))
+		}
 	})
 	m.HandleDisconnect(func(s *melody.Session) {
 		value, exists := s.Get("info")
@@ -34,30 +55,49 @@ func New(conn *store.Conn, logger *zap.SugaredLogger) *melody.Melody {
 		}
 
 		req := value.(*service.ConnectRequest)
+		go func() {
+			err := conn.RemoveUserFromRoom(req.UserName, req.Room)
+			if err != nil {
+				logger.Error(fmt.Errorf("error removing user from room: %s", err.Error()))
+			}
+		}()
 		msg := fmt.Sprintf("%s has left the room", req.UserName)
 		cReq := service.ChatRequest{
 			UserName: req.Room,
 			Room:     req.Room,
 			Message:  msg,
+			DateTime: time.Now().Unix(),
 		}
 		cMsg, _ := json.Marshal(cReq)
-		m.BroadcastOthers(cMsg, s)
+		err := m.BroadcastOthers(cMsg, s)
+		if err != nil {
+			logger.Error(fmt.Errorf("error broadcasting message: %s", err.Error()))
+		}
 	})
 	m.HandleMessage(func(s *melody.Session, msg []byte) {
-		m.BroadcastFilter(msg, func(q *melody.Session) bool {
-			req := service.ChatRequest{}
-			json.Unmarshal(msg, &req)
-			logger.Info(req)
-			if req.UserName != "/stock" {
-				go func() {
-					conn.AddMessage(&req)
-				}()
-			}
+		req := service.ChatRequest{}
+		err := json.Unmarshal(msg, &req)
+		if err != nil {
+			logger.Error(fmt.Errorf("error binding json: %s", err.Error()))
+		}
+		if req.UserName != "/stock" {
+			go func() {
+				err := conn.AddMessage(&req)
+				if err != nil {
+					logger.Error(fmt.Errorf("error adding message: %s", err.Error()))
+				}
+			}()
+		}
+		err = m.BroadcastFilter(msg, func(q *melody.Session) bool {
+
 			value, _ := s.Get("info")
 
 			cReq := value.(*service.ConnectRequest)
 			return cReq.Room == req.Room
 		})
+		if err != nil {
+			logger.Error(fmt.Errorf("error setting message filter: %s", err.Error()))
+		}
 	})
 	return m
 }

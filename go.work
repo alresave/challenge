@@ -1,0 +1,8 @@
+go 1.19
+
+use (
+	./auth-service
+	./bot-service
+	./chat-service
+	./common
+)
