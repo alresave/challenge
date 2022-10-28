@@ -12,6 +12,10 @@ func SetupRouter(svr chat.Service) *gin.Engine {
 	router.Use(gin.Recovery())
 	router.Use(middleware.CORSMiddleware())
 
+	router.Static("/front", "../frontend/chat/")
+	/*router.GET("/", func(c *gin.Context) {
+		http.ServeFile(c.Writer, c.Request, "../frontend/chat/index.html")
+	})*/
 	router.Group("/chat")
 	{
 		v1Group := router.Group("/chat/v1")
