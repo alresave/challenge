@@ -20,6 +20,7 @@ The makefile has four targets
 
 The configuration is done in the .env file. The frontend has the routes hardcoded, so it is important to not change the URLs of the services.
 
+The frontend runs on the same url as the chat service http://localhost:6312/front/
 
 
 
