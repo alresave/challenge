@@ -78,9 +78,7 @@ func (c *Conn) GetMessages(room string) ([]service.ChatRequest, error) {
 func (c *Conn) AddRoom(room string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	cmd := c.Db.SAdd(ctx, "rooms", room)
-	_, err := cmd.Result()
-	return err
+	return c.Db.SAdd(ctx, "rooms", room).Err()
 }
 
 func (c *Conn) GetRooms() ([]string, error) {
@@ -110,24 +108,35 @@ func (c *Conn) GetRoomUsers(room string) ([]string, error) {
 func (c *Conn) AddUserToRoom(user, room string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	cmd := c.Db.SAdd(ctx, room, user)
-	_, err := cmd.Result()
-	return err
+	return c.Db.SAdd(ctx, fmt.Sprintf("%s.users", room), user).Err()
 }
 
 func (c *Conn) RemoveUserFromRoom(user, room string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	cmd := c.Db.SRem(ctx, room, user)
-	_, err := cmd.Result()
-	return err
+	return c.Db.SRem(ctx, room, user).Err()
 }
 
 func (c *Conn) AddDefaultRooms() error {
 	c.Logger.Info("adding default rooms")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	cmd := c.Db.SAdd(ctx, "rooms", "General", "Flirt")
-	_, err := cmd.Result()
-	return err
+	return c.Db.SAdd(ctx, "rooms", "General", "Flirt").Err()
+}
+
+func (c *Conn) AddUserTicket(user, ticket string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return c.Db.Set(ctx, fmt.Sprintf("ticket.%s", user), ticket, 30*time.Second).Err()
+}
+
+func (c *Conn) ValidateUserTicket(user, ticket string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := c.Db.Get(ctx, fmt.Sprintf("ticket.%s", user))
+	t, err := cmd.Result()
+	if err != nil {
+		return false
+	}
+	return t == ticket
 }

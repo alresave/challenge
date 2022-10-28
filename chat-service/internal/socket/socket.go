@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 	"jobsity-challenge/chat-service/internal/store"
 	"jobsity-challenge/common/service"
+	"time"
 )
 
 func New(conn *store.Conn, logger *zap.SugaredLogger) *melody.Melody {
@@ -16,6 +17,16 @@ func New(conn *store.Conn, logger *zap.SugaredLogger) *melody.Melody {
 		req := service.ConnectRequest{
 			UserName: params.Get("userName"),
 			Room:     params.Get("room"),
+		}
+		fmt.Println(req)
+		ticket := params.Get("ticket")
+		valid := conn.ValidateUserTicket(req.UserName, ticket)
+		if !valid {
+			err := s.CloseWithMsg([]byte("User not authenticated"))
+			if err != nil {
+				logger.Error(fmt.Errorf("error disconnecting: %s", err.Error()))
+			}
+			return
 		}
 		s.Set("info", &req)
 		go func() {
@@ -29,6 +40,7 @@ func New(conn *store.Conn, logger *zap.SugaredLogger) *melody.Melody {
 			UserName: req.Room,
 			Room:     req.Room,
 			Message:  msg,
+			DateTime: time.Now().Unix(),
 		}
 		cMsg, _ := json.Marshal(cReq)
 		err := m.Broadcast(cMsg)
@@ -54,6 +66,7 @@ func New(conn *store.Conn, logger *zap.SugaredLogger) *melody.Melody {
 			UserName: req.Room,
 			Room:     req.Room,
 			Message:  msg,
+			DateTime: time.Now().Unix(),
 		}
 		cMsg, _ := json.Marshal(cReq)
 		err := m.BroadcastOthers(cMsg, s)
@@ -67,7 +80,6 @@ func New(conn *store.Conn, logger *zap.SugaredLogger) *melody.Melody {
 		if err != nil {
 			logger.Error(fmt.Errorf("error binding json: %s", err.Error()))
 		}
-		logger.Info(req)
 		if req.UserName != "/stock" {
 			go func() {
 				err := conn.AddMessage(&req)

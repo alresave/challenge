@@ -19,6 +19,7 @@ func SetupRouter(svr chat.Service) *gin.Engine {
 			v1Group.GET("/messages", svr.GetMessages)
 			v1Group.GET("/rooms", svr.GetRooms)
 			v1Group.GET("/room_users", svr.GetRoomUsers)
+			v1Group.GET("/ticket", svr.GetChatTicket)
 			v1Group.GET("/ws", svr.HandleChat)
 		}
 	}

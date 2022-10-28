@@ -1,4 +1,4 @@
-# jobsity-challenge
+# Jobsity Challenge
 
 ## Components
 

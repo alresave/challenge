@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 	"jobsity-challenge/common/service"
 	"log"
+	"time"
 )
 
 type Consumer struct {
@@ -93,9 +94,13 @@ func (c *Consumer) Consume() error {
 				UserName: "/stock",
 				Room:     resp.Room,
 				Message:  m,
+				DateTime: time.Now().Unix(),
 			}
 			cMsg, _ := json.Marshal(req)
-			c.melody.Broadcast(cMsg)
+			err = c.melody.Broadcast(cMsg)
+			if err != nil {
+				c.logger.Error(fmt.Errorf("error bradcasting: %s", err.Error()))
+			}
 		}
 	}()
 
