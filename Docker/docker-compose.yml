@@ -2,20 +2,20 @@ version: "3.7"
 
 services:
   mysql:
-    container_name: mysql
+    container_name: chat_mysql
     image: mysql:latest
     ports:
       - 3306:3306
     environment:
       MYSQL_DATABASE: 'chat'
-      MYSQL_PASSWORD: 'password'
-      MYSQL_ROOT_PASSWORD: 'PPassword'
+      MYSQL_PASSWORD: 'mysqlpass'
+      MYSQL_ROOT_PASSWORD: 'mysqlpass'
       MYSQL_USER: dbuser
     volumes:
       - ./data/mysql:/var/lib/mysql
 
   rabbit:
-    container_name: rabbitMQ
+    container_name: chat_rabbitMQ
     image: rabbitmq:latest
     ports:
       - 5672:5672
@@ -23,13 +23,13 @@ services:
     environment:
       RABBITMQ_ERLANG_COOKIE:
       RABBITMQ_DEFAULT_USER: rabbit
-      RABBITMQ_DEFAULT_PASS: rabbit
+      RABBITMQ_DEFAULT_PASS: rabbitpass
 
   redis:
-    container_name: redis
+    container_name: chat_redis
     image: redis:latest
     ports:
       - '6379:6379'
-    command: redis-server --save 20 1 --loglevel warning --requirepass PPassword
+    command: redis-server --save 20 1 --loglevel warning --requirepass redispass
     volumes:
       - ./data/redis:/data

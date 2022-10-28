@@ -28,6 +28,8 @@ modules/.settings
 modules/.vscode
 .vimrc
 .nvimrc
+bin/
+build/
 
 # Don't check in secret files
 *secret.js

@@ -30,7 +30,9 @@ func main() {
 
 func listenAndServe(logger *zap.SugaredLogger) {
 	if err := godotenv.Load("../.env"); err != nil {
-		panic("Failed to load environment variables:" + err.Error())
+		if err := godotenv.Load("./.env"); err != nil {
+			panic("Failed to load environment variables:" + err.Error())
+		}
 	}
 
 	cfg := config.Config{}
