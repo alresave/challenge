@@ -1,6 +1,6 @@
 
 
-# challenge
+# chat app with multiple rooms
 
 **auth-Service** Is in charge of the user management.
 
