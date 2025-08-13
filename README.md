@@ -1,6 +1,7 @@
 
 
 # chat app with multiple rooms
+the backend is made in Go tha frontend is Angular woth tailwind CSS
 
 **auth-Service** Is in charge of the user management.
 
